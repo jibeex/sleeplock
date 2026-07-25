@@ -1,0 +1,41 @@
+# Xcode build artifacts
+build/
+DerivedData/
+*.o
+*.d
+*.hmap
+*.ipa
+*.xcarchive
+*.dSYM
+
+# Xcode user-specific settings (not shared)
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# Xcode-generated Index
+.index-build/
+Index.noindex/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Credentials and secrets — never commit
+*.p12
+*.cer
+*.mobileprovision
+*.provisionprofile
+ExportOptions.plist
+
+# xcodegen input is source; generated .xcodeproj is committed so Xcode opens directly
+# If you prefer to regenerate on every clone, add: *.xcodeproj/

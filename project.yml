@@ -1,0 +1,67 @@
+name: SleepLock
+
+options:
+  deploymentTarget:
+    macOS: "26.0"
+  xcodeVersion: "26.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    DEVELOPMENT_TEAM: AQ37XP4866
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_STRICT_CONCURRENCY: minimal
+
+targets:
+
+  SleepLock:
+    type: application
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: SleepLock
+        excludes: ["*.entitlements", "*.plist"]
+      - path: Shared
+    info:
+      path: SleepLock/Info.plist
+      properties:
+        LSUIElement: true
+        NSPrincipalClass: NSApplication
+    entitlements:
+      path: SleepLock/SleepLock.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.jibeex.sleeplock
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jibeex.sleeplock
+        CODE_SIGN_ENTITLEMENTS: SleepLock/SleepLock.entitlements
+    dependencies:
+      - target: SleepLockControl
+        embed: true
+        codeSign: true
+
+  SleepLockControl:
+    type: app-extension
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: SleepLockControl
+        excludes: ["*.entitlements", "*.plist"]
+      - path: Shared
+    info:
+      path: SleepLockControl/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: SleepLockControl/SleepLockControl.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.application-groups:
+          - group.com.jibeex.sleeplock
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jibeex.sleeplock.control
+        CODE_SIGN_ENTITLEMENTS: SleepLockControl/SleepLockControl.entitlements
