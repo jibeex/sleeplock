@@ -1,7 +1,17 @@
 # SleepLock — Control Center Toggle
 
-A native macOS 26 app that adds a highlighted toggle to Control Center using
-`ControlWidgetToggle` (WidgetKit). No hacks, no `sudo`.
+Keep your Mac awake with a single tap. SleepLock adds a toggle to Control
+Center — tap it to prevent your Mac from sleeping (lid close, idle timeout,
+display off). Tap again to let it sleep normally.
+
+Useful when you're running a long download, a build, a presentation, or anything
+else that shouldn't be interrupted by sleep.
+
+- 🌙 **Moon icon** — sleep is allowed (default)
+- 🔒 **Lock icon** — sleep is blocked
+
+Built with `ControlWidgetToggle` (WidgetKit, macOS 26). No hacks, no `sudo`,
+no menubar clutter. Runs silently at login.
 
 **Requires:** macOS 26+ · Xcode 26+
 
