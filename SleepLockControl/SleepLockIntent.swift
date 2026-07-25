@@ -1,8 +1,6 @@
 import AppIntents
 import WidgetKit
 
-let sleepLockControlKind = "com.jibeex.sleeplock.control"
-
 struct ToggleSleepLockIntent: SetValueIntent {
     static let title: LocalizedStringResource = "Toggle Sleep Lock"
 
@@ -18,10 +16,10 @@ struct ToggleSleepLockIntent: SetValueIntent {
 
         // Notify the main app. DistributedNotificationCenter matches the observer
         // in AppDelegate — user-scoped, no unsafe pointer boilerplate.
-        let name = value ? SleepLockState.didEnable : SleepLockState.didDisable
+        let name = value ? Constant.notificationDidEnable : Constant.notificationDidDisable
         DistributedNotificationCenter.default().post(name: .init(name), object: nil)
 
-        ControlCenter.shared.reloadControls(ofKind: sleepLockControlKind)
+        ControlCenter.shared.reloadControls(ofKind: Constant.controlKind)
         return .result()
     }
 }

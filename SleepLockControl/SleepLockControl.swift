@@ -20,7 +20,7 @@ struct SleepLockValueProvider: ControlValueProvider {
 struct SleepLockControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(
-            kind: sleepLockControlKind,
+            kind: Constant.controlKind,
             provider: SleepLockValueProvider()
         ) { isDisabled in
             // Pass an instance with the next value already set.
@@ -30,12 +30,10 @@ struct SleepLockControl: ControlWidget {
                 action: ToggleSleepLockIntent(value: !isDisabled)
             ) { isOn in
                 // ControlWidget only renders systemImage — no custom SwiftUI views.
-                // moon.zzz.fill (moon + ZZZ) clearly signals sleep when allowed;
-                // lock.fill clearly signals blocked when active.
-                // The transition between the two states tells the full story.
+                // moon.zzz.fill signals sleep allowed; lock.fill signals sleep blocked.
                 Label(
                     isOn ? "Block Sleep" : "Allow Sleep",
-                    systemImage: isOn ? "lock.fill" : "moon.zzz.fill"
+                    systemImage: isOn ? Constant.symbolLocked : Constant.symbolUnlocked
                 )
             }
         }
