@@ -115,12 +115,22 @@ chmod +x "$PKG_SCRIPTS/postinstall"
 
 # ── Build .pkg (unsigned) ──────────────────────────────────────────────────────
 log "Building package..."
+
+# Generate a component plist so we can mark the bundle as non-relocatable.
+# Without this, pkgbuild's relocation logic will install the app wherever an
+# existing copy of com.jibeex.sleeplock is found (e.g. ~/Applications/) instead
+# of the canonical /Applications/ path, which then breaks the postinstall script.
+COMPONENTS_PLIST="$BUILD_DIR/components.plist"
+pkgbuild --analyze --root "$PKG_ROOT" "$COMPONENTS_PLIST"
+/usr/libexec/PlistBuddy -c "Set :0:BundleIsRelocatable false" "$COMPONENTS_PLIST"
+
 pkgbuild \
   --root             "$PKG_ROOT" \
   --scripts          "$PKG_SCRIPTS" \
   --identifier       "$BUNDLE_ID" \
   --version          "$VERSION" \
   --install-location "/" \
+  --component-plist  "$COMPONENTS_PLIST" \
   "$FINAL_PKG"
 
 # ── Done ───────────────────────────────────────────────────────────────────────
