@@ -1,8 +1,11 @@
 #!/bin/bash
 # build-release.sh — build a SleepLock installer (.pkg)
 #
-# The package is unsigned. macOS will show a Gatekeeper warning on first open.
-# Users dismiss it via System Settings → Privacy & Security → "Open Anyway".
+# The app is built with the development cert, then re-signed with an ad-hoc
+# identity ("-") before packaging.  Ad-hoc signed apps are treated as unsigned
+# by Gatekeeper; because the pkg installer never sets the quarantine attribute
+# on files it lays down, Gatekeeper never runs an assessment on launch and the
+# app opens without any "Open Anyway" prompt on any machine.
 #
 # Usage:  bash build-release.sh [VERSION]
 #         bash build-release.sh 1.0.0
@@ -50,6 +53,42 @@ mkdir -p "$PKG_ROOT/Library/PrivilegedHelperTools"
 
 cp -R "$APP" "$PKG_ROOT/Applications/"
 
+# ── Re-sign with ad-hoc identity ───────────────────────────────────────────────
+# The app is built with a development certificate that is only trusted on the
+# developer's own machine.  Gatekeeper rejects it on every other machine with
+# "cannot be opened", even when spctl --add runs in the postinstall.
+#
+# Fix: re-sign with the ad-hoc identity ("-").  Ad-hoc signatures are treated
+# as "unsigned" by Gatekeeper.  Because the pkg installer never sets the
+# quarantine attribute on the files it lays down, Gatekeeper performs no
+# assessment and the app launches on any Mac without prompts.
+#
+# --preserve-metadata=entitlements keeps the com.apple.security.app-sandbox and
+# com.apple.security.application-groups entitlements intact so the sandboxed
+# widget extension can still access the shared App Group.
+log "Re-signing with ad-hoc identity (strips dev cert, preserves entitlements)..."
+STAGED_APP="$PKG_ROOT/Applications/SleepLock.app"
+
+# Remove the provisioning profile — it is tied to the dev cert and invalid
+# under ad-hoc signing.  Without it the OS will not try to validate the cert.
+rm -f "$STAGED_APP/Contents/embedded.provisionprofile"
+find "$STAGED_APP" -name "*.appex" -exec rm -f '{}/Contents/embedded.provisionprofile' \;
+
+# Sign nested code (extensions, frameworks) first, then the top-level bundle.
+find "$STAGED_APP" -name "*.appex" | while IFS= read -r ext; do
+    codesign --force --sign - \
+        --preserve-metadata=entitlements \
+        --timestamp=none \
+        "$ext"
+done
+codesign --force --sign - \
+    --preserve-metadata=entitlements \
+    --timestamp=none \
+    "$STAGED_APP"
+
+# Verify the ad-hoc signature is self-consistent.
+codesign -v "$STAGED_APP" || die "Ad-hoc re-signing failed."
+
 # Helper script — reads state file and calls pmset as root
 cat > "$PKG_ROOT/Library/PrivilegedHelperTools/com.jibeex.sleeplock-helper" << 'HELPER_EOF'
 #!/bin/bash
@@ -90,11 +129,11 @@ STATE_FILE="$STATE_DIR/state"
 HELPER="/Library/PrivilegedHelperTools/com.jibeex.sleeplock-helper"
 PLIST="/Library/LaunchDaemons/com.jibeex.sleeplock.plist"
 
-# Remove quarantine and add an explicit Gatekeeper allow rule so macOS
-# does not block the app on first launch. The installer runs as root,
-# so both operations succeed without any extra user interaction.
+# The app is ad-hoc signed (dev cert stripped at build time). The pkg
+# installer never sets quarantine on the files it lays down, so Gatekeeper
+# performs no assessment on launch.  Remove quarantine defensively in case
+# the user copied the app manually before running the installer.
 xattr -rd com.apple.quarantine /Applications/SleepLock.app 2>/dev/null || true
-spctl --add --label "SleepLock" /Applications/SleepLock.app 2>/dev/null || true
 
 # Fix ownership (pkgbuild captures files as the building user; installer runs as root)
 chown root:wheel "$HELPER" && chmod 755 "$HELPER"

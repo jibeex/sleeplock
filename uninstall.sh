@@ -1,0 +1,58 @@
+#!/bin/bash
+# uninstall.sh — remove SleepLock and all its components
+#
+# Usage:  sudo bash uninstall.sh
+#         (re-runs itself with sudo if not already root)
+
+set -euo pipefail
+
+log()   { echo "▶ $*"; }
+done_() { echo "✓ $*"; }
+
+if [[ "$EUID" -ne 0 ]]; then
+    echo "Re-running with sudo..."
+    exec sudo bash "$0" "$@"
+fi
+
+# ── Stop and remove the LaunchDaemon ──────────────────────────────────────────
+PLIST="/Library/LaunchDaemons/com.jibeex.sleeplock.plist"
+if [[ -f "$PLIST" ]]; then
+    log "Unloading LaunchDaemon..."
+    launchctl bootout system "$PLIST" 2>/dev/null || true
+    rm -f "$PLIST"
+    done_ "LaunchDaemon removed"
+else
+    echo "  (LaunchDaemon not installed — skipping)"
+fi
+
+# ── Remove the helper tool ────────────────────────────────────────────────────
+HELPER="/Library/PrivilegedHelperTools/com.jibeex.sleeplock-helper"
+if [[ -f "$HELPER" ]]; then
+    rm -f "$HELPER"
+    done_ "Helper removed"
+fi
+
+# ── Remove the app ────────────────────────────────────────────────────────────
+for app in "/Applications/SleepLock.app" "$HOME/Applications/SleepLock.app"; do
+    if [[ -d "$app" ]]; then
+        log "Removing $app ..."
+        rm -rf "$app"
+        done_ "$app removed"
+    fi
+done
+
+# ── Remove the state directory ────────────────────────────────────────────────
+STATE_DIR="/Library/Application Support/com.jibeex.sleeplock"
+if [[ -d "$STATE_DIR" ]]; then
+    rm -rf "$STATE_DIR"
+    done_ "State directory removed"
+fi
+
+# ── Forget the pkg receipt (if any) ──────────────────────────────────────────
+pkgutil --forget com.jibeex.sleeplock 2>/dev/null && done_ "PKG receipt forgotten" || true
+
+# ── Re-enable sleep (in case SleepLock left it disabled) ─────────────────────
+pmset -a disablesleep 0 2>/dev/null && done_ "Sleep re-enabled" || true
+
+echo ""
+echo "SleepLock has been uninstalled."
