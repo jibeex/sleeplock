@@ -1,15 +1,8 @@
 #!/bin/bash
-# build-release.sh — build a notarized SleepLock installer (.pkg)
+# build-release.sh — build a SleepLock installer (.pkg)
 #
-# Prerequisites (first run only):
-#   1. Developer ID Application cert  → already in Keychain
-#   2. Developer ID Installer cert    → developer.apple.com/account/resources/certificates
-#   3. Store notarytool credentials once:
-#        xcrun notarytool store-credentials "sleeplock-notary" \
-#          --apple-id YOUR_APPLE_ID \
-#          --team-id AQ37XP4866 \
-#          --password YOUR_APP_SPECIFIC_PASSWORD
-#      (app-specific password: appleid.apple.com → Sign-In and Security)
+# The package is unsigned. macOS will show a Gatekeeper warning on first open.
+# Users dismiss it via System Settings → Privacy & Security → "Open Anyway".
 #
 # Usage:  bash build-release.sh [VERSION]
 #         bash build-release.sh 1.0.0
@@ -20,14 +13,12 @@ set -euo pipefail
 SCHEME="SleepLock"
 BUNDLE_ID="com.jibeex.sleeplock"
 TEAM_ID="AQ37XP4866"
-NOTARY_PROFILE="sleeplock-notary"
 VERSION="${1:-1.0.0}"
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 BUILD_DIR="build/release"
 ARCHIVE="$BUILD_DIR/SleepLock.xcarchive"
-EXPORT_DIR="$BUILD_DIR/export"
-APP="$EXPORT_DIR/SleepLock.app"
+APP="$ARCHIVE/Products/Applications/SleepLock.app"
 PKG_ROOT="$BUILD_DIR/pkg-root"
 PKG_SCRIPTS="$BUILD_DIR/pkg-scripts"
 FINAL_PKG="build/SleepLock-$VERSION.pkg"
@@ -35,24 +26,6 @@ FINAL_PKG="build/SleepLock-$VERSION.pkg"
 # ── Helpers ────────────────────────────────────────────────────────────────────
 log() { echo "▶ $*"; }
 die() { echo "✗ $*" >&2; exit 1; }
-
-# ── Preflight: signing identities ──────────────────────────────────────────────
-log "Checking signing identities..."
-
-APP_SIGN=$(security find-identity -v -p codesigning \
-  | grep "Developer ID Application" | grep "$TEAM_ID" \
-  | head -1 | awk '{print $2}')
-[[ -n "$APP_SIGN" ]] \
-  || die "No 'Developer ID Application' cert for team $TEAM_ID in Keychain."
-
-INSTALLER_SIGN=$(security find-identity -v \
-  | grep "Developer ID Installer" | grep "$TEAM_ID" \
-  | head -1 | awk '{print $2}')
-[[ -n "$INSTALLER_SIGN" ]] \
-  || die "No 'Developer ID Installer' cert found.\nDownload from: developer.apple.com/account/resources/certificates"
-
-log "App sign:       $APP_SIGN"
-log "Installer sign: $INSTALLER_SIGN"
 
 # ── Clean ──────────────────────────────────────────────────────────────────────
 rm -rf "$BUILD_DIR"
@@ -67,26 +40,7 @@ xcodebuild archive \
   CODE_SIGN_STYLE=Automatic \
   DEVELOPMENT_TEAM="$TEAM_ID"
 
-# ── Export (Developer ID) ──────────────────────────────────────────────────────
-log "Exporting with Developer ID..."
-cat > "$BUILD_DIR/ExportOptions.plist" << EOXML
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>method</key>         <string>developer-id</string>
-  <key>teamID</key>         <string>$TEAM_ID</string>
-  <key>signingStyle</key>   <string>automatic</string>
-  <key>stripSwiftSymbols</key><true/>
-</dict></plist>
-EOXML
-
-xcodebuild -exportArchive \
-  -archivePath "$ARCHIVE" \
-  -exportPath "$EXPORT_DIR" \
-  -exportOptionsPlist "$BUILD_DIR/ExportOptions.plist"
-
-[[ -d "$APP" ]] || die "Export failed — $APP not found."
+[[ -d "$APP" ]] || die "Archive failed — $APP not found."
 
 # ── Package root ───────────────────────────────────────────────────────────────
 log "Building package root..."
@@ -136,9 +90,9 @@ STATE_FILE="$STATE_DIR/state"
 HELPER="/Library/PrivilegedHelperTools/com.jibeex.sleeplock-helper"
 PLIST="/Library/LaunchDaemons/com.jibeex.sleeplock.plist"
 
-# Fix ownership (pkgbuild installs as the building user; installer runs as root)
-chown root:wheel "$HELPER"  && chmod 755 "$HELPER"
-chown root:wheel "$PLIST"   && chmod 644 "$PLIST"
+# Fix ownership (pkgbuild captures files as the building user; installer runs as root)
+chown root:wheel "$HELPER" && chmod 755 "$HELPER"
+chown root:wheel "$PLIST"  && chmod 644 "$PLIST"
 
 # State directory — admin-group writable (app runs as admin user)
 mkdir -p "$STATE_DIR"
@@ -153,27 +107,20 @@ exit 0
 POST_EOF
 chmod +x "$PKG_SCRIPTS/postinstall"
 
-# ── Build signed .pkg ──────────────────────────────────────────────────────────
-log "Building signed package..."
+# ── Build .pkg (unsigned) ──────────────────────────────────────────────────────
+log "Building package..."
 pkgbuild \
-  --root        "$PKG_ROOT" \
-  --scripts     "$PKG_SCRIPTS" \
-  --identifier  "$BUNDLE_ID" \
-  --version     "$VERSION" \
+  --root             "$PKG_ROOT" \
+  --scripts          "$PKG_SCRIPTS" \
+  --identifier       "$BUNDLE_ID" \
+  --version          "$VERSION" \
   --install-location "/" \
-  --sign        "$INSTALLER_SIGN" \
   "$FINAL_PKG"
-
-# ── Notarize ───────────────────────────────────────────────────────────────────
-log "Submitting for notarization (~1 min)..."
-xcrun notarytool submit "$FINAL_PKG" \
-  --keychain-profile "$NOTARY_PROFILE" \
-  --wait
-
-# ── Staple ─────────────────────────────────────────────────────────────────────
-log "Stapling notarization ticket..."
-xcrun stapler staple "$FINAL_PKG"
 
 # ── Done ───────────────────────────────────────────────────────────────────────
 log "✓  $FINAL_PKG"
+log ""
+log "   macOS will block on first open — users:"
+log "   System Settings → Privacy & Security → Open Anyway"
+log ""
 log "   Upload to: https://github.com/jibeex/sleeplock/releases/new"

@@ -13,11 +13,28 @@ else that shouldn't be interrupted by sleep.
 Built with `ControlWidgetToggle` (WidgetKit, macOS 26). No hacks, no `sudo`,
 no menubar clutter. Runs silently at login.
 
-**Requires:** macOS 26+ · Xcode 26+
+**Requires:** macOS 26+
 
 ---
 
-## Build & run
+## Install
+
+1. Download `SleepLock-*.pkg` from the [latest release](https://github.com/jibeex/sleeplock/releases/latest)
+2. Double-click the package — macOS will block it with a Gatekeeper warning
+3. Open **System Settings → Privacy & Security** → scroll down → click **Open Anyway**
+4. Complete the installer (requires your password to install the background daemon)
+5. Open **System Settings → Control Center** → find **Sleep Lock** → click **+**
+
+---
+
+## Build from source
+
+**Requires:** Xcode 26+
+
+```sh
+git clone https://github.com/jibeex/sleeplock.git
+open SleepLock.xcodeproj
+```
 
 ```sh
 git clone https://github.com/jibeex/sleeplock.git
