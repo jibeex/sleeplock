@@ -29,13 +29,14 @@ struct SleepLockControl: ControlWidget {
                 isOn: isDisabled,
                 action: ToggleSleepLockIntent(value: !isDisabled)
             ) { isOn in
-                // ControlWidget only renders systemImage — no custom SwiftUI views.
-                // moon.zzz.fill signals sleep allowed; lock.fill signals sleep blocked.
+                // .circle.fill symbols provide the white-icon-in-circle appearance
+                // that matches system toggles (Bluetooth, AirDrop, etc.).
                 Label(
                     isOn ? "Block Sleep" : "Allow Sleep",
                     systemImage: isOn ? Constant.symbolLocked : Constant.symbolUnlocked
                 )
             }
+            .tint(.blue)
         }
         .displayName("Sleep Lock")
         .description("Prevent your Mac from sleeping.")
