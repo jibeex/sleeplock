@@ -17,8 +17,11 @@ fi
 # ── Kill running app processes ───────────────────────────────────────────────
 # Must happen before removing files — otherwise macOS returns -47 (file busy)
 # on the next open attempt and the installer may fail to overwrite locked files.
-pkill -x SleepLock      2>/dev/null || true
-pkill -x SleepLockContro 2>/dev/null || true
+# Use -9 (SIGKILL) — SIGTERM is ignored by sandboxed widget processes.
+# Also kill by bundle path pattern to catch App Translocation copies.
+pkill -9 -x SleepLock      2>/dev/null || true
+pkill -9 -x SleepLockContro 2>/dev/null || true
+pkill -9 -f "SleepLock.app" 2>/dev/null || true
 sleep 1   # give processes a moment to exit before we remove their files
 
 # ── Stop and remove the LaunchDaemon ──────────────────────────────────────────
