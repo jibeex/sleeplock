@@ -29,17 +29,18 @@ struct SleepLockControl: ControlWidget {
                 isOn: isDisabled,
                 action: ToggleSleepLockIntent(value: !isDisabled)
             ) { isOn in
-                // Explicit palette rendering: filled circle in blue, lock cutout in white.
-                // This matches the system-control pattern (Bluetooth, AirDrop) where the
-                // icon is a solid-color circle with a white symbol inside.
-                // Avoids .tint() on the toggle, which blends the tint into the circle and
-                // icon simultaneously and produces a washed-out light-blue on the white pill.
+                // Adaptive palette: on dark pill (off state) → white circle + blue icon,
+                // matching AirDrop/Bluetooth. On white pill (on state) → blue circle +
+                // white icon, so the circle stays visible against the light background.
                 Label(
                     isOn ? "Block Sleep" : "Allow Sleep",
                     systemImage: isOn ? Constant.symbolLocked : Constant.symbolUnlocked
                 )
                 .symbolRenderingMode(.palette)
-                .foregroundStyle(.blue, .white)
+                .foregroundStyle(
+                    isOn ? Color.blue  : Color.white,   // circle fill
+                    isOn ? Color.white : Color.blue     // icon inside
+                )
             }
         }
         .displayName("Sleep Lock")

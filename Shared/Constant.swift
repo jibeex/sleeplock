@@ -6,7 +6,7 @@ enum Constant {
     static let defaultsKeyIsSleepDisabled = "isSleepDisabled"
     static let stateFilePath              = "/Library/Application Support/com.jibeex.sleeplock/state"
     static let symbolLocked               = "lock.circle.fill"
-    static let symbolUnlocked             = "lock.open.circle.fill"
+    static let symbolUnlocked             = "moon.circle.fill"
     static let notificationDidEnable      = "com.jibeex.sleeplock.didEnable"
     static let notificationDidDisable     = "com.jibeex.sleeplock.didDisable"
 }
