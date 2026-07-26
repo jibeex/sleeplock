@@ -90,9 +90,11 @@ STATE_FILE="$STATE_DIR/state"
 HELPER="/Library/PrivilegedHelperTools/com.jibeex.sleeplock-helper"
 PLIST="/Library/LaunchDaemons/com.jibeex.sleeplock.plist"
 
-# Remove quarantine so macOS doesn't block the app on first launch.
-# The installer runs as root, so this clears it for all users.
+# Remove quarantine and add an explicit Gatekeeper allow rule so macOS
+# does not block the app on first launch. The installer runs as root,
+# so both operations succeed without any extra user interaction.
 xattr -rd com.apple.quarantine /Applications/SleepLock.app 2>/dev/null || true
+spctl --add --label "SleepLock" /Applications/SleepLock.app 2>/dev/null || true
 
 # Fix ownership (pkgbuild captures files as the building user; installer runs as root)
 chown root:wheel "$HELPER" && chmod 755 "$HELPER"
