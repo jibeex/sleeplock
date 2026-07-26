@@ -2,10 +2,10 @@
 # build-release.sh — build a SleepLock installer (.pkg)
 #
 # The app is built with the development cert, then re-signed with an ad-hoc
-# identity ("-") before packaging.  Ad-hoc signed apps are treated as unsigned
-# by Gatekeeper; because the pkg installer never sets the quarantine attribute
-# on files it lays down, Gatekeeper never runs an assessment on launch and the
-# app opens without any "Open Anyway" prompt on any machine.
+# identity ("-") before packaging.  The postinstall script deliberately sets
+# a quarantine attribute on the installed app so macOS shows "Open Anyway" in
+# System Settings → Privacy & Security on first launch.  Users click it once
+# and the app is permanently whitelisted on that machine.
 #
 # Usage:  bash build-release.sh [VERSION]
 #         bash build-release.sh 1.0.0
@@ -129,11 +129,16 @@ STATE_FILE="$STATE_DIR/state"
 HELPER="/Library/PrivilegedHelperTools/com.jibeex.sleeplock-helper"
 PLIST="/Library/LaunchDaemons/com.jibeex.sleeplock.plist"
 
-# The app is ad-hoc signed (dev cert stripped at build time). The pkg
-# installer never sets quarantine on the files it lays down, so Gatekeeper
-# performs no assessment on launch.  Remove quarantine defensively in case
-# the user copied the app manually before running the installer.
-xattr -rd com.apple.quarantine /Applications/SleepLock.app 2>/dev/null || true
+# macOS 15+ runs Gatekeeper on every app launch regardless of quarantine.
+# Ad-hoc signed apps are blocked with "cannot be opened" and — critically —
+# the "Open Anyway" button only appears in Privacy & Security when the app
+# HAS a quarantine attribute.  The pkg installer does not set quarantine on
+# the files it lays down, so we add it explicitly here.  On first launch,
+# macOS blocks the app, the user visits System Settings → Privacy & Security,
+# clicks "Open Anyway" once, and the app is permanently whitelisted.
+QTIME=$(printf '%x' "$(date +%s)")
+xattr -w com.apple.quarantine "0083;${QTIME};SleepLock Installer;" \
+    /Applications/SleepLock.app 2>/dev/null || true
 
 # Fix ownership (pkgbuild captures files as the building user; installer runs as root)
 chown root:wheel "$HELPER" && chmod 755 "$HELPER"

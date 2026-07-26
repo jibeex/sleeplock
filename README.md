@@ -20,21 +20,20 @@ no menubar clutter. Runs silently at login.
 ## Install
 
 1. Download `SleepLock-*.pkg` from the [latest release](https://github.com/jibeex/sleeplock/releases/latest)
-2. Double-click the package — macOS will block it with a Gatekeeper warning
-3. Open **System Settings → Privacy & Security** → scroll down → click **Open Anyway**
-4. Complete the installer (requires your password to install the background daemon)
-5. Open **System Settings → Control Center** → find **Sleep Lock** → click **+**
+2. Double-click the package to run the installer
+   - If macOS blocks the **installer itself**: open **System Settings → Privacy & Security**, scroll down, click **Open Anyway** for the package, then re-run it
+3. Complete the installer (requires your password to install the background daemon)
+4. Open **SleepLock** from `/Applications` — macOS will block it on first launch
+5. Open **System Settings → Privacy & Security**, scroll down, click **Open Anyway** for SleepLock, then open it again
+6. Open **System Settings → Control Center** → find **Sleep Lock** → click **+**
+
+> SleepLock is not notarized (no paid Apple Developer account). The two "Open Anyway" prompts are a one-time step per machine — macOS permanently whitelists the app after you approve it.
 
 ---
 
 ## Build from source
 
 **Requires:** Xcode 26+
-
-```sh
-git clone https://github.com/jibeex/sleeplock.git
-open SleepLock.xcodeproj
-```
 
 ```sh
 git clone https://github.com/jibeex/sleeplock.git
