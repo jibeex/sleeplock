@@ -14,6 +14,13 @@ if [[ "$EUID" -ne 0 ]]; then
     exec sudo bash "$0" "$@"
 fi
 
+# ── Kill running app processes ───────────────────────────────────────────────
+# Must happen before removing files — otherwise macOS returns -47 (file busy)
+# on the next open attempt and the installer may fail to overwrite locked files.
+pkill -x SleepLock      2>/dev/null || true
+pkill -x SleepLockContro 2>/dev/null || true
+sleep 1   # give processes a moment to exit before we remove their files
+
 # ── Stop and remove the LaunchDaemon ──────────────────────────────────────────
 PLIST="/Library/LaunchDaemons/com.jibeex.sleeplock.plist"
 if [[ -f "$PLIST" ]]; then

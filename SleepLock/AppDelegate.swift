@@ -15,9 +15,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
             self?.setDisableSleep(false)
         }
 
-        if SleepLockState.isSleepDisabled {
-            setDisableSleep(true)
-        }
+        // Always sync the state file to UserDefaults on startup.
+        // If the app was killed while the lock was active, the widget may have
+        // already persisted isSleepDisabled=false to UserDefaults, but the main
+        // process never received notificationDidDisable and never wrote "0" to
+        // the state file.  The daemon would then hold SleepDisabled=1 forever.
+        setDisableSleep(SleepLockState.isSleepDisabled)
 
         // Log registration failures instead of silently swallowing them.
         do {
