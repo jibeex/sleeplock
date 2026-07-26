@@ -58,15 +58,13 @@ cp -R "$APP" "$PKG_ROOT/Applications/"
 # developer's own machine.  Gatekeeper rejects it on every other machine with
 # "cannot be opened", even when spctl --add runs in the postinstall.
 #
-# Fix: re-sign with the ad-hoc identity ("-").  Ad-hoc signatures are treated
-# as "unsigned" by Gatekeeper.  Because the pkg installer never sets the
-# quarantine attribute on the files it lays down, Gatekeeper performs no
-# assessment and the app launches on any Mac without prompts.
-#
-# --preserve-metadata=entitlements keeps the com.apple.security.app-sandbox and
-# com.apple.security.application-groups entitlements intact so the sandboxed
-# widget extension can still access the shared App Group.
-log "Re-signing with ad-hoc identity (strips dev cert, preserves entitlements)..."
+# Fix: re-sign with the ad-hoc identity ("-").  We use explicit entitlement
+# files that keep only what is functionally needed and strip the team-specific
+# keys (com.apple.application-identifier, com.apple.developer.team-identifier).
+# macOS 26 enforces that those keys match the signing identity; leaving them
+# in the ad-hoc binary (TeamIdentifier=not set) causes launchd to reject the
+# spawn with POSIX 163 "Launchd job spawn failed".
+log "Re-signing with ad-hoc identity (strips dev cert and team entitlements)..."
 STAGED_APP="$PKG_ROOT/Applications/SleepLock.app"
 
 # Remove the provisioning profile — it is tied to the dev cert and invalid
@@ -74,15 +72,36 @@ STAGED_APP="$PKG_ROOT/Applications/SleepLock.app"
 rm -f "$STAGED_APP/Contents/embedded.provisionprofile"
 find "$STAGED_APP" -name "*.appex" -exec rm -f '{}/Contents/embedded.provisionprofile' \;
 
+# Minimal entitlements for the main app (not sandboxed — only needs App Group).
+cat > "$BUILD_DIR/app.entitlements.plist" << 'ENT_EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>com.apple.security.application-groups</key>
+    <array><string>group.com.jibeex.sleeplock</string></array>
+</dict></plist>
+ENT_EOF
+
+# Minimal entitlements for the widget extension (sandboxed + App Group).
+cat > "$BUILD_DIR/appex.entitlements.plist" << 'ENT_EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>com.apple.security.app-sandbox</key><true/>
+    <key>com.apple.security.application-groups</key>
+    <array><string>group.com.jibeex.sleeplock</string></array>
+</dict></plist>
+ENT_EOF
+
 # Sign nested code (extensions, frameworks) first, then the top-level bundle.
 find "$STAGED_APP" -name "*.appex" | while IFS= read -r ext; do
     codesign --force --sign - \
-        --preserve-metadata=entitlements \
+        --entitlements "$BUILD_DIR/appex.entitlements.plist" \
         --timestamp=none \
         "$ext"
 done
 codesign --force --sign - \
-    --preserve-metadata=entitlements \
+    --entitlements "$BUILD_DIR/app.entitlements.plist" \
     --timestamp=none \
     "$STAGED_APP"
 
