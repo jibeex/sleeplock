@@ -148,6 +148,15 @@ chmod 644 "$PKG_ROOT/Library/LaunchDaemons/com.jibeex.sleeplock.plist"
 # LaunchAgent plist — keeps the app alive across sleep/wake and crashes.
 # KeepAlive/SuccessfulExit=false: launchd restarts on crash/kill but not on
 # clean exit, so graceful shutdowns (applicationWillTerminate) are respected.
+#
+# ProgramArguments wraps /bin/sh -c so launchd always has a binary to run even
+# when the app is moved to Trash or permanently deleted.  On each startup the
+# wrapper branches:
+#   App present → exec the real binary (normal path, zero overhead)
+#   App missing → silent bootout from launchd domain (no root needed) +
+#                 osascript dialog prompting the user to rm the root-owned
+#                 plist with admin privileges.  Re-prompts on the next login
+#                 if the user cancels or lacks admin access.
 cat > "$PKG_ROOT/Library/LaunchAgents/com.jibeex.sleeplock.app.plist" << 'AGENT_EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -155,7 +164,24 @@ cat > "$PKG_ROOT/Library/LaunchAgents/com.jibeex.sleeplock.app.plist" << 'AGENT_
 <plist version="1.0"><dict>
   <key>Label</key><string>com.jibeex.sleeplock.app</string>
   <key>ProgramArguments</key>
-  <array><string>/Applications/SleepLock.app/Contents/MacOS/SleepLock</string></array>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>APP=/Applications/SleepLock.app
+PLIST=/Library/LaunchAgents/com.jibeex.sleeplock.app.plist
+if [ ! -d "$APP" ]; then
+  launchctl bootout gui/$(id -u) "$PLIST" 2>/dev/null || true
+  sleep 3
+  osascript \
+    -e 'display dialog "SleepLock was removed from Applications. Remove its launch agent? (requires admin password)" with title "SleepLock Cleanup" buttons {"Cancel", "Remove"} default button "Remove" with icon caution' \
+    -e 'if button returned of result is "Remove" then' \
+    -e 'do shell script "rm -f /Library/LaunchAgents/com.jibeex.sleeplock.app.plist" with administrator privileges' \
+    -e 'end if' \
+    2>/dev/null || true
+  exit 0
+fi
+exec "$APP/Contents/MacOS/SleepLock"</string>
+  </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key>
   <dict>
