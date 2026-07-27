@@ -51,8 +51,12 @@ mkdir -p "$PKG_ROOT/Applications"
 mkdir -p "$PKG_ROOT/Library/LaunchDaemons"
 mkdir -p "$PKG_ROOT/Library/LaunchAgents"
 mkdir -p "$PKG_ROOT/Library/PrivilegedHelperTools"
+mkdir -p "$PKG_ROOT/usr/local/bin"
 
 cp -R "$APP" "$PKG_ROOT/Applications/"
+# Bundle uninstall script so installed users don't need the source repo
+cp uninstall.sh "$PKG_ROOT/usr/local/bin/sleeplock-uninstall"
+chmod 755 "$PKG_ROOT/usr/local/bin/sleeplock-uninstall"
 
 # ── Re-sign with ad-hoc identity ───────────────────────────────────────────────
 # The app is built with a development certificate that is only trusted on the
@@ -186,6 +190,7 @@ xattr -w com.apple.quarantine "0083;${QTIME};SleepLock Installer;" \
 # Fix ownership (pkgbuild captures files as the building user; installer runs as root)
 chown root:wheel "$HELPER" && chmod 755 "$HELPER"
 chown root:wheel "$PLIST"  && chmod 644 "$PLIST"
+chown root:wheel /usr/local/bin/sleeplock-uninstall && chmod 755 /usr/local/bin/sleeplock-uninstall
 
 # State directory — admin-group writable (app runs as admin user)
 mkdir -p "$STATE_DIR"
