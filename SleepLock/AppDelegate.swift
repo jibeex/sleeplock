@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 
 final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
 
@@ -36,6 +37,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         // /Library/LaunchAgents/com.jibeex.sleeplock.app.plist.  launchd restarts
         // this process automatically on crash or OS-initiated kill (e.g. sleep/wake
         // memory pressure) — no SMAppService registration needed here.
+
+        // Upgrade cleanup (pre-v1.0.12): the app used to register itself as a Login
+        // Item via SMAppService.mainApp.  The LaunchAgent handles that now.  If the
+        // old registration is still present it would launch the app a second time on
+        // every login — unregister it silently on first launch after upgrading.
+        let legacyService = SMAppService.mainApp
+        if legacyService.status == .enabled || legacyService.status == .requiresApproval {
+            try? legacyService.unregister()
+            NSLog("SleepLock: removed legacy SMAppService login-item registration")
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

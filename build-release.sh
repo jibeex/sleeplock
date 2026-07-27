@@ -203,6 +203,11 @@ STATE_FILE="$STATE_DIR/state"
 HELPER="/Library/PrivilegedHelperTools/com.jibeex.sleeplock-helper"
 PLIST="/Library/LaunchDaemons/com.jibeex.sleeplock.plist"
 
+# ── Upgrade cleanup: remove artifacts left by older versions ──────────────────
+# v1.0.13 installed the uninstall script at /usr/local/bin/sleeplock-uninstall.
+# v1.0.14+ bundles it inside the app at Contents/Resources/uninstall.sh instead.
+rm -f /usr/local/bin/sleeplock-uninstall
+
 # macOS 15+ runs Gatekeeper on every app launch regardless of quarantine.
 # Ad-hoc signed apps are blocked with "cannot be opened" and — critically —
 # the "Open Anyway" button only appears in Privacy & Security when the app
