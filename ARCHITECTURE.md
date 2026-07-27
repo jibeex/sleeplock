@@ -75,7 +75,7 @@ LaunchDaemon  com.jibeex.sleeplock
 ## Startup & Recovery Flow
 
 ```
-SleepLock.app launches (login item via SMAppService)
+SleepLock.app launches (kept alive by LaunchAgent — KeepAlive/SuccessfulExit=false)
          │
          ▼
 applicationDidFinishLaunching
@@ -95,9 +95,11 @@ applicationDidFinishLaunching
   │       if mismatch → re-write state file
   │       (guards against external pmset changes or partial failures)
   │
-  └─ 4. LOGIN ITEM REGISTRATION
-          if SMAppService.mainApp.status == .notRegistered
-            → register()   (skip if .enabled or .requiresApproval)
+  └─ 4. LIFECYCLE NOTE
+          Launch-at-login and crash recovery are handled by
+          /Library/LaunchAgents/com.jibeex.sleeplock.app.plist
+          (KeepAlive/SuccessfulExit=false — launchd restarts on crash/kill,
+           not on clean exit, so the app can still quit normally)
 ```
 
 ---
