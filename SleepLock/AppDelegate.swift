@@ -1,5 +1,4 @@
 import AppKit
-import ServiceManagement
 
 final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
 
@@ -33,17 +32,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
             self?.syncIfDrifted()
         }
 
-        // Register as a login item so macOS auto-launches us after first open.
-        // Only register when not yet registered — skip if already enabled
-        // (redundant syscall) and skip if .requiresApproval (user explicitly
-        // disabled the login item; we must not override that silently).
-        if SMAppService.mainApp.status == .notRegistered {
-            do {
-                try SMAppService.mainApp.register()
-            } catch {
-                NSLog("SleepLock: failed to register login item: %@", error.localizedDescription)
-            }
-        }
+        // Launch-at-login and KeepAlive are managed by the LaunchAgent installed at
+        // /Library/LaunchAgents/com.jibeex.sleeplock.app.plist.  launchd restarts
+        // this process automatically on crash or OS-initiated kill (e.g. sleep/wake
+        // memory pressure) — no SMAppService registration needed here.
     }
 
     func applicationWillTerminate(_ notification: Notification) {

@@ -24,6 +24,22 @@ pkill -9 -x SleepLockContro 2>/dev/null || true
 pkill -9 -f "SleepLock.app" 2>/dev/null || true
 sleep 1   # give processes a moment to exit before we remove their files
 
+# ── Stop and remove the LaunchAgent (user-space keepalive) ────────────────────
+AGENT_PLIST="/Library/LaunchAgents/com.jibeex.sleeplock.app.plist"
+if [[ -f "$AGENT_PLIST" ]]; then
+    log "Unloading LaunchAgent..."
+    # Bootout from every logged-in GUI session
+    for uid_dir in /private/var/folders/*/*; do
+        uid=$(stat -f "%u" "$uid_dir" 2>/dev/null) || continue
+        [[ "$uid" -gt 499 ]] || continue  # skip root and system users
+        launchctl bootout gui/"$uid" "$AGENT_PLIST" 2>/dev/null || true
+    done
+    rm -f "$AGENT_PLIST"
+    done_ "LaunchAgent removed"
+else
+    echo "  (LaunchAgent not installed — skipping)"
+fi
+
 # ── Stop and remove the LaunchDaemon ──────────────────────────────────────────
 PLIST="/Library/LaunchDaemons/com.jibeex.sleeplock.plist"
 if [[ -f "$PLIST" ]]; then

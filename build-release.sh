@@ -49,6 +49,7 @@ xcodebuild archive \
 log "Building package root..."
 mkdir -p "$PKG_ROOT/Applications"
 mkdir -p "$PKG_ROOT/Library/LaunchDaemons"
+mkdir -p "$PKG_ROOT/Library/LaunchAgents"
 mkdir -p "$PKG_ROOT/Library/PrivilegedHelperTools"
 
 cp -R "$APP" "$PKG_ROOT/Applications/"
@@ -138,6 +139,29 @@ cat > "$PKG_ROOT/Library/LaunchDaemons/com.jibeex.sleeplock.plist" << 'PLIST_EOF
 PLIST_EOF
 chmod 644 "$PKG_ROOT/Library/LaunchDaemons/com.jibeex.sleeplock.plist"
 
+
+# LaunchAgent plist — keeps the app alive across sleep/wake and crashes.
+# KeepAlive/SuccessfulExit=false: launchd restarts on crash/kill but not on
+# clean exit, so graceful shutdowns (applicationWillTerminate) are respected.
+cat > "$PKG_ROOT/Library/LaunchAgents/com.jibeex.sleeplock.app.plist" << 'AGENT_EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.jibeex.sleeplock.app</string>
+  <key>ProgramArguments</key>
+  <array><string>/Applications/SleepLock.app/Contents/MacOS/SleepLock</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key>
+  <dict>
+    <!-- Restart on crash/OS-kill; do NOT restart on clean applicationWillTerminate -->
+    <key>SuccessfulExit</key><false/>
+  </dict>
+  <key>ProcessType</key><string>Background</string>
+</dict></plist>
+AGENT_EOF
+chmod 644 "$PKG_ROOT/Library/LaunchAgents/com.jibeex.sleeplock.app.plist"
+
 # ── Postinstall script ─────────────────────────────────────────────────────────
 mkdir -p "$PKG_SCRIPTS"
 cat > "$PKG_SCRIPTS/postinstall" << 'POST_EOF'
@@ -169,9 +193,21 @@ chown root:admin "$STATE_DIR" && chmod 770 "$STATE_DIR"
 [[ -f "$STATE_FILE" ]] || echo "0" > "$STATE_FILE"
 chown root:admin "$STATE_FILE" && chmod 660 "$STATE_FILE"
 
-# Load (or reload) the daemon
+# Load (or reload) the LaunchDaemon (system-wide, root)
 launchctl bootout system "$PLIST" 2>/dev/null || true
 launchctl bootstrap system "$PLIST"
+
+# Bootstrap the LaunchAgent for the currently logged-in console user.
+# The installer runs as root; we must explicitly target the user's session.
+AGENT_PLIST="/Library/LaunchAgents/com.jibeex.sleeplock.app.plist"
+CONSOLE_USER=$(stat -f "%Su" /dev/console 2>/dev/null || echo "")
+if [[ -n "$CONSOLE_USER" && "$CONSOLE_USER" != "root" ]]; then
+    CONSOLE_UID=$(id -u "$CONSOLE_USER" 2>/dev/null || echo "")
+    if [[ -n "$CONSOLE_UID" ]]; then
+        launchctl bootout  gui/"$CONSOLE_UID" "$AGENT_PLIST" 2>/dev/null || true
+        launchctl bootstrap gui/"$CONSOLE_UID" "$AGENT_PLIST"
+    fi
+fi
 exit 0
 POST_EOF
 chmod +x "$PKG_SCRIPTS/postinstall"
