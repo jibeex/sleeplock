@@ -18,12 +18,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
             self?.setDisableSleep(false)
         }
 
-        // Always sync the state file to UserDefaults on startup.
-        // If the app was killed while the lock was active, the widget may have
-        // already persisted isSleepDisabled=false to UserDefaults, but the main
-        // process never received notificationDidDisable and never wrote "0" to
-        // the state file.  The daemon would then hold SleepDisabled=1 forever.
-        setDisableSleep(SleepLockState.isSleepDisabled)
+        // Bootstrap from the state file, not UserDefaults.
+        //
+        // UserDefaults can be empty after a fresh install, after the sandboxed
+        // extension fails to persist a write (ad-hoc signing, no real team ID),
+        // or when the group container hasn't been provisioned yet.  The state
+        // file is written by this process (non-sandboxed) and survives restarts,
+        // so it is the more reliable source of truth on startup.
+        //
+        // setDisableSleep() writes BOTH the state file AND UserDefaults, so after
+        // this call syncIfDrifted() will always have a valid UserDefaults baseline.
+        let bootState = (try? String(contentsOfFile: Constant.stateFilePath, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)) == "1"
+        setDisableSleep(bootState)
 
         // Periodic drift correction — catches the edge case where a distributed
         // notification was delivered but the state file write failed (full disk,
@@ -61,6 +68,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
     // MARK: - State file
 
     private func setDisableSleep(_ disable: Bool) {
+        // Write UserDefaults first.  The main app is non-sandboxed, so its writes
+        // always land in the group container — unlike the sandboxed extension whose
+        // UserDefaults writes may be silently redirected with ad-hoc signing.
+        // syncIfDrifted() reads UserDefaults as its source of truth, so keeping it
+        // in sync here prevents the 30-second timer from resetting state to 0.
+        SleepLockState.isSleepDisabled = disable
+        SleepLockState.synchronize()
+
         let value = disable ? "1" : "0"
         do {
             try value.write(toFile: Constant.stateFilePath, atomically: true, encoding: .utf8)

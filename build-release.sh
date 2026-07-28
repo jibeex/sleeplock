@@ -40,8 +40,9 @@ xcodebuild archive \
   -scheme "$SCHEME" \
   -archivePath "$ARCHIVE" \
   -destination "generic/platform=macOS" \
-  CODE_SIGN_STYLE=Automatic \
-  DEVELOPMENT_TEAM="$TEAM_ID"
+  CODE_SIGN_IDENTITY="" \
+  CODE_SIGNING_REQUIRED=NO \
+  CODE_SIGNING_ALLOWED=NO
 
 [[ -d "$APP" ]] || die "Archive failed — $APP not found."
 
@@ -199,6 +200,7 @@ chmod 644 "$PKG_ROOT/Library/LaunchAgents/com.jibeex.sleeplock.app.plist"
 # install (to surface the "Open Anyway" prompt); re-adding it on every upgrade
 # creates a new App Translocation mount that forces WidgetKit to reload the
 # extension from a stale cached path, requiring a logout to clean up.
+mkdir -p "$PKG_SCRIPTS"
 cat > "$PKG_SCRIPTS/preinstall" << 'PRE_EOF'
 #!/bin/bash
 [[ -d /Applications/SleepLock.app ]] && touch /tmp/.sleeplock-upgrade || true
@@ -243,11 +245,14 @@ rm -f /tmp/.sleeplock-upgrade
 chown root:wheel "$HELPER" && chmod 755 "$HELPER"
 chown root:wheel "$PLIST"  && chmod 644 "$PLIST"
 
-# State directory — admin-group writable (app runs as admin user)
+# State directory — owned by the console user so the (non-sandboxed) app can
+# write it directly.  We cannot assume admin group membership; chown to the
+# actual user:primary-group instead.
+CONSOLE_GID=$(id -g "$CONSOLE_USER" 2>/dev/null || echo "20")
 mkdir -p "$STATE_DIR"
-chown root:admin "$STATE_DIR" && chmod 770 "$STATE_DIR"
+chown "${CONSOLE_USER}:${CONSOLE_GID}" "$STATE_DIR" && chmod 700 "$STATE_DIR"
 [[ -f "$STATE_FILE" ]] || echo "0" > "$STATE_FILE"
-chown root:admin "$STATE_FILE" && chmod 660 "$STATE_FILE"
+chown "${CONSOLE_USER}:${CONSOLE_GID}" "$STATE_FILE" && chmod 600 "$STATE_FILE"
 
 # Load (or reload) the LaunchDaemon (system-wide, root)
 launchctl bootout system "$PLIST" 2>/dev/null || true
