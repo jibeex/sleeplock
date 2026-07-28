@@ -245,14 +245,13 @@ rm -f /tmp/.sleeplock-upgrade
 chown root:wheel "$HELPER" && chmod 755 "$HELPER"
 chown root:wheel "$PLIST"  && chmod 644 "$PLIST"
 
-# State directory — owned by the console user so the (non-sandboxed) app can
-# write it directly.  We cannot assume admin group membership; chown to the
-# actual user:primary-group instead.
-CONSOLE_GID=$(id -g "$CONSOLE_USER" 2>/dev/null || echo "20")
+# State directory — world-writable so any logged-in user's SleepLock instance
+# can control sleep state.  The security tradeoff is minor: any local process
+# can flip a text toggle; the actual pmset call requires the root LaunchDaemon.
 mkdir -p "$STATE_DIR"
-chown "${CONSOLE_USER}:${CONSOLE_GID}" "$STATE_DIR" && chmod 700 "$STATE_DIR"
+chown root:wheel "$STATE_DIR" && chmod 777 "$STATE_DIR"
 [[ -f "$STATE_FILE" ]] || echo "0" > "$STATE_FILE"
-chown "${CONSOLE_USER}:${CONSOLE_GID}" "$STATE_FILE" && chmod 600 "$STATE_FILE"
+chown root:wheel "$STATE_FILE" && chmod 666 "$STATE_FILE"
 
 # Load (or reload) the LaunchDaemon (system-wide, root)
 launchctl bootout system "$PLIST" 2>/dev/null || true
