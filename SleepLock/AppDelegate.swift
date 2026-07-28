@@ -51,7 +51,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
 
     func applicationWillTerminate(_ notification: Notification) {
         syncTimer?.invalidate()
-        setDisableSleep(false)
+        // Do NOT write "0" here. The state file encodes desired state, not app
+        // presence. Writing "0" on every exit causes permanent lock loss when
+        // launchd doesn't restart us (KeepAlive/SuccessfulExit=false means clean
+        // exits are not restarted). On the next launch, applicationDidFinishLaunching
+        // restores the correct state from UserDefaults.
     }
 
     // MARK: - State file

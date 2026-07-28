@@ -15,4 +15,11 @@ enum SleepLockState {
         get { defaults.bool(forKey: Constant.defaultsKeyIsSleepDisabled) }
         set { defaults.set(newValue, forKey: Constant.defaultsKeyIsSleepDisabled) }
     }
+
+    /// Forces UserDefaults to commit pending writes to disk immediately.
+    /// Needed in short-lived extension processes where async writes might be
+    /// lost if the process exits before the write completes.
+    static func synchronize() {
+        defaults.synchronize()
+    }
 }

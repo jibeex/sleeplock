@@ -193,6 +193,19 @@ exec "$APP/Contents/MacOS/SleepLock"</string>
 AGENT_EOF
 chmod 644 "$PKG_ROOT/Library/LaunchAgents/com.jibeex.sleeplock.app.plist"
 
+# ── Preinstall script ──────────────────────────────────────────────────────────
+# Detect upgrades before the pkg overwrites /Applications/SleepLock.app so the
+# postinstall can skip adding quarantine.  Quarantine is only needed on a fresh
+# install (to surface the "Open Anyway" prompt); re-adding it on every upgrade
+# creates a new App Translocation mount that forces WidgetKit to reload the
+# extension from a stale cached path, requiring a logout to clean up.
+cat > "$PKG_SCRIPTS/preinstall" << 'PRE_EOF'
+#!/bin/bash
+[[ -d /Applications/SleepLock.app ]] && touch /tmp/.sleeplock-upgrade || true
+exit 0
+PRE_EOF
+chmod +x "$PKG_SCRIPTS/preinstall"
+
 # ── Postinstall script ─────────────────────────────────────────────────────────
 mkdir -p "$PKG_SCRIPTS"
 cat > "$PKG_SCRIPTS/postinstall" << 'POST_EOF'
@@ -212,12 +225,19 @@ rm -f /usr/local/bin/sleeplock-uninstall
 # Ad-hoc signed apps are blocked with "cannot be opened" and — critically —
 # the "Open Anyway" button only appears in Privacy & Security when the app
 # HAS a quarantine attribute.  The pkg installer does not set quarantine on
-# the files it lays down, so we add it explicitly here.  On first launch,
-# macOS blocks the app, the user visits System Settings → Privacy & Security,
-# clicks "Open Anyway" once, and the app is permanently whitelisted.
-QTIME=$(printf '%x' "$(date +%s)")
-xattr -w com.apple.quarantine "0083;${QTIME};SleepLock Installer;" \
-    /Applications/SleepLock.app 2>/dev/null || true
+# the files it lays down, so we add it on fresh installs only.
+#
+# On upgrades we skip it: re-adding quarantine each time creates a new App
+# Translocation mount that forces WidgetKit to load the extension from a
+# stale cached path (the previous version), requiring a logout to clean up.
+# The preinstall script drops /tmp/.sleeplock-upgrade when the app already
+# exists at install time.
+if [[ ! -f /tmp/.sleeplock-upgrade ]]; then
+    QTIME=$(printf '%x' "$(date +%s)")
+    xattr -w com.apple.quarantine "0083;${QTIME};SleepLock Installer;" \
+        /Applications/SleepLock.app 2>/dev/null || true
+fi
+rm -f /tmp/.sleeplock-upgrade
 
 # Fix ownership (pkgbuild captures files as the building user; installer runs as root)
 chown root:wheel "$HELPER" && chmod 755 "$HELPER"
@@ -232,6 +252,15 @@ chown root:admin "$STATE_FILE" && chmod 660 "$STATE_FILE"
 # Load (or reload) the LaunchDaemon (system-wide, root)
 launchctl bootout system "$PLIST" 2>/dev/null || true
 launchctl bootstrap system "$PLIST"
+
+# ── Upgrade path: flush stale Control widget extension ────────────────────────
+# On upgrade, the old SleepLockControl.appex may still be running from an App
+# Translocation path created by the previous version.  Kill it and re-register
+# so WidgetKit picks up the new binary in the current session — no logout needed.
+killall SleepLockControl 2>/dev/null || true
+pluginkit -a /Applications/SleepLock.app/Contents/PlugIns/SleepLockControl.appex \
+    2>/dev/null || true
+killall ControlCenter 2>/dev/null || true
 
 # Bootstrap the LaunchAgent for the currently logged-in console user.
 # The installer runs as root; we must explicitly target the user's session.
