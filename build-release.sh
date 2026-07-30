@@ -228,6 +228,10 @@ CONSOLE_USER=$(stat -f "%Su" /dev/console 2>/dev/null || echo "")
 if [[ -n "$CONSOLE_USER" && "$CONSOLE_USER" != "root" ]]; then
     CONSOLE_UID=$(id -u "$CONSOLE_USER" 2>/dev/null || echo "")
     if [[ -n "$CONSOLE_UID" ]]; then
+        # Kill any orphan SleepLock process not managed by the LaunchAgent
+        # (e.g. manually launched from Finder) before bootout, to prevent two
+        # instances running side-by-side after bootstrap.
+        killall SleepLock 2>/dev/null || true
         launchctl bootout  gui/"$CONSOLE_UID" "$AGENT_PLIST" 2>/dev/null || true
         launchctl bootstrap gui/"$CONSOLE_UID" "$AGENT_PLIST"
     fi
