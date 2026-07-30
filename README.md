@@ -10,8 +10,8 @@ else that shouldn't be interrupted by sleep.
 - 🌙 **Moon icon** — sleep is allowed (default)
 - 🔒 **Lock icon** — sleep is blocked
 
-Built with `ControlWidgetToggle` (WidgetKit, macOS 26). No hacks, no `sudo`,
-no menubar clutter. Runs silently at login.
+Built with `ControlWidgetToggle` (WidgetKit, macOS 26). No menubar clutter.
+Runs silently at login.
 
 **Requires:** macOS 26+
 
@@ -27,7 +27,9 @@ no menubar clutter. Runs silently at login.
 5. Open **System Settings → Privacy & Security**, scroll down, click **Open Anyway** for SleepLock, then open it again
 6. Open **System Settings → Control Center** → find **Sleep Lock** → click **+**
 
-> SleepLock is not notarized (no paid Apple Developer account). The two "Open Anyway" prompts are a one-time step per machine — macOS permanently whitelists the app after you approve it.
+> SleepLock is signed with an Apple Development certificate (free Apple ID), not a
+> paid Developer ID. The two "Open Anyway" prompts are a one-time step per machine —
+> macOS permanently whitelists the app after you approve it.
 
 ---
 
@@ -44,8 +46,9 @@ open SleepLock.xcodeproj
 2. Select the **SleepLock** scheme → **Run** (`⌘R`)
 
 Xcode will auto-provision signing and the App Group (`group.com.jibeex.sleeplock`)
-under your own Team ID. If building under a different account, update the bundle
-identifier prefix in both target settings.
+under your own Team ID. If building under a different account, update
+`DEVELOPMENT_TEAM` in `project.yml` and regenerate the project with
+[XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
 ---
 
@@ -62,23 +65,53 @@ identifier prefix in both target settings.
 ```
 SleepLock/
 ├── Shared/
-│   └── SleepLockState.swift          ← shared between both targets
-├── SleepLock/                         ← main app (background agent)
-│   ├── SleepLockApp.swift
+│   └── Constant.swift                 ← shared constants (App Group ID, UserDefaults key, symbols)
+├── SleepLock/                         ← main app (background agent, no Dock icon)
 │   ├── AppDelegate.swift
 │   └── SleepLock.entitlements
-└── SleepLockControl/                  ← WidgetKit extension
-    ├── SleepLockControl.swift
-    ├── SleepLockIntent.swift
-    └── SleepLockControl.entitlements
+├── SleepLockControl/                  ← WidgetKit Control Center extension
+│   ├── SleepLockControl.swift
+│   ├── SleepLockIntent.swift
+│   └── SleepLockControl.entitlements
+├── docs/adr/                          ← Architecture Decision Records
+├── ARCHITECTURE.md                    ← system overview, flows, IPC table
+├── project.yml                        ← XcodeGen project definition
+└── build-release.sh                   ← builds the .pkg installer
 ```
 
 ---
 
 ## How it works
 
-- The **widget extension** reads and writes a shared `Bool` via App Group
-  `UserDefaults`, then posts a `DistributedNotification` on toggle
-- The **main app** runs silently at login (no Dock icon), listens for that
-  notification, and calls `pmset` to enable or disable sleep
-- The Control Center toggle highlights when sleep is disabled
+```
+User taps toggle (Control Center)
+        │
+        ▼
+SleepLockControl.appex
+  writes new state → App Group UserDefaults
+  posts DistributedNotification (didEnable / didDisable)
+        │
+        ▼
+SleepLock.app  (LaunchAgent — always running, no Dock icon)
+  writes "1" or "0" → /Library/Application Support/com.jibeex.sleeplock/state
+  re-syncs App Group UserDefaults → widget reads correct state
+  reloads Control Center widget
+        │
+        ▼ (WatchPaths trigger — immediate)
+LaunchDaemon  com.jibeex.sleeplock  (runs as root)
+  reads state file → pmset -a disablesleep 1 | 0
+```
+
+- **`pmset -a disablesleep`** is the only reliable way to prevent sleep with the
+  lid closed on battery. `IOPMAssertion` (the user-space alternative) does not
+  work in that scenario.
+- **Two stores** (state file + App Group UserDefaults) exist because no single
+  store satisfies all three parties: the root LaunchDaemon needs a
+  `WatchPaths`-watchable absolute path; the sandboxed widget can only read App
+  Group UserDefaults via `cfprefsd`.
+- **Apple Development signing** is required — not just preferred. Ad-hoc signing
+  sets `TeamIdentifier = not set`, causing `cfprefsd` to give each process its
+  own isolated store, breaking App Group sharing entirely.
+
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for full flow diagrams and
+[`docs/adr/`](docs/adr/) for the rationale behind each key design decision.
