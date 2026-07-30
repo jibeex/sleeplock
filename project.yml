@@ -23,6 +23,11 @@ targets:
       - path: SleepLock
         excludes: ["*.entitlements", "*.plist"]
       - path: Shared
+      # uninstall.sh is bundled as a resource so it is covered by the code
+      # signature at archive time.  The build script must NOT inject it after
+      # archiving — modifying the bundle post-signing invalidates the signature.
+      - path: uninstall.sh
+        buildPhase: resources
     info:
       path: SleepLock/Info.plist
       properties:
@@ -41,6 +46,7 @@ targets:
       - target: SleepLockControl
         embed: true
         codeSign: true
+      - sdk: WidgetKit.framework
 
   SleepLockControl:
     type: app-extension

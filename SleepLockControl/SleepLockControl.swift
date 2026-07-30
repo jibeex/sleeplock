@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import os.log
 
 @main
 struct SleepLockBundle: WidgetBundle {
@@ -13,7 +14,9 @@ struct SleepLockValueProvider: ControlValueProvider {
     var previewValue: Bool { false }
 
     func currentValue() async throws -> Bool {
-        SleepLockState.isSleepDisabled
+        let result = Constant.appGroupDefaults.bool(forKey: Constant.stateKey)
+        os_log(.default, "🔵 currentValue(): result=%{public}@", String(result))
+        return result
     }
 }
 
@@ -23,11 +26,11 @@ struct SleepLockControl: ControlWidget {
             kind: Constant.controlKind,
             provider: SleepLockValueProvider()
         ) { isDisabled in
-            // Pass an instance with the next value already set.
+            // System automatically populates the action's value before perform().
             ControlWidgetToggle(
                 "Sleep Lock",
                 isOn: isDisabled,
-                action: ToggleSleepLockIntent(value: !isDisabled)
+                action: ToggleSleepLockIntent()
             ) { isOn in
                 // Plain symbols — framework owns background shape/radius.
                 // .tint() on the toggle (not .foregroundStyle on the label) is the

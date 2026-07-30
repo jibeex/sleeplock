@@ -1,11 +1,23 @@
 #!/bin/bash
 # build-release.sh — build a SleepLock installer (.pkg)
 #
-# The app is built with the development cert, then re-signed with an ad-hoc
-# identity ("-") before packaging.  The postinstall script deliberately sets
-# a quarantine attribute on the installed app so macOS shows "Open Anyway" in
-# System Settings → Privacy & Security on first launch.  Users click it once
-# and the app is permanently whitelisted on that machine.
+# Signing: the app is archived with Xcode Automatic signing, which uses the
+# Apple Development certificate (Team ID AQ37XP4866).  A Developer ID
+# Application certificate is NOT required and is not used here.
+#
+# The development certificate is sufficient for pkg distribution:
+#   • Gatekeeper shows "Open Anyway" on first launch (same user experience
+#     as before — acceptable for a utility that requires admin installation).
+#   • The real Team ID is preserved in the binary, which allows cfprefsd to
+#     validate App Group membership and makes UserDefaults(suiteName:) work
+#     correctly between the main app and the Control Center widget.
+#
+# ⚠️  DO NOT pass CODE_SIGN_IDENTITY="" or CODE_SIGNING_ALLOWED=NO to xcodebuild.
+# ⚠️  DO NOT re-sign with `codesign -s "-"` (ad-hoc) after archiving.
+# Either action strips the Team ID → cfprefsd detaches → widget reads wrong
+# state + "SleepLock.app would like to access data from other apps" dialog
+# reappears on every toggle even after the user clicks "Allow".
+# See docs/adr/0004-apple-development-cert-not-ad-hoc.md
 #
 # Usage:  bash build-release.sh [VERSION]
 #         bash build-release.sh 1.0.0
@@ -36,13 +48,13 @@ mkdir -p "$BUILD_DIR" "$(dirname "$FINAL_PKG")"
 
 # ── Archive ────────────────────────────────────────────────────────────────────
 log "Archiving $SCHEME $VERSION..."
+# Automatic signing uses the Apple Development certificate (Team ID AQ37XP4866).
+# Do NOT add CODE_SIGN_IDENTITY, CODE_SIGNING_REQUIRED, or CODE_SIGNING_ALLOWED
+# overrides here — stripping or disabling signing breaks App Group UserDefaults.
 xcodebuild archive \
   -scheme "$SCHEME" \
   -archivePath "$ARCHIVE" \
-  -destination "generic/platform=macOS" \
-  CODE_SIGN_IDENTITY="" \
-  CODE_SIGNING_REQUIRED=NO \
-  CODE_SIGNING_ALLOWED=NO
+  -destination "generic/platform=macOS"
 
 [[ -d "$APP" ]] || die "Archive failed — $APP not found."
 
@@ -53,67 +65,10 @@ mkdir -p "$PKG_ROOT/Library/LaunchDaemons"
 mkdir -p "$PKG_ROOT/Library/LaunchAgents"
 mkdir -p "$PKG_ROOT/Library/PrivilegedHelperTools"
 cp -R "$APP" "$PKG_ROOT/Applications/"
-
-# ── Re-sign with ad-hoc identity ───────────────────────────────────────────────
-# The app is built with a development certificate that is only trusted on the
-# developer's own machine.  Gatekeeper rejects it on every other machine with
-# "cannot be opened", even when spctl --add runs in the postinstall.
-#
-# Fix: re-sign with the ad-hoc identity ("-").  We use explicit entitlement
-# files that keep only what is functionally needed and strip the team-specific
-# keys (com.apple.application-identifier, com.apple.developer.team-identifier).
-# macOS 26 enforces that those keys match the signing identity; leaving them
-# in the ad-hoc binary (TeamIdentifier=not set) causes launchd to reject the
-# spawn with POSIX 163 "Launchd job spawn failed".
-log "Re-signing with ad-hoc identity (strips dev cert and team entitlements)..."
-STAGED_APP="$PKG_ROOT/Applications/SleepLock.app"
-
-# Remove the provisioning profile — it is tied to the dev cert and invalid
-# under ad-hoc signing.  Without it the OS will not try to validate the cert.
-rm -f "$STAGED_APP/Contents/embedded.provisionprofile"
-find "$STAGED_APP" -name "*.appex" -exec rm -f '{}/Contents/embedded.provisionprofile' \;
-
-# Bundle the uninstall script inside the app — idiomatic macOS, co-located with the bundle.
-# Must be done before re-signing so the file is covered by the ad-hoc signature.
-mkdir -p "$STAGED_APP/Contents/Resources"
-cp uninstall.sh "$STAGED_APP/Contents/Resources/uninstall.sh"
-chmod 755 "$STAGED_APP/Contents/Resources/uninstall.sh"
-
-# Minimal entitlements for the main app (not sandboxed — only needs App Group).
-cat > "$BUILD_DIR/app.entitlements.plist" << 'ENT_EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-    <key>com.apple.security.application-groups</key>
-    <array><string>group.com.jibeex.sleeplock</string></array>
-</dict></plist>
-ENT_EOF
-
-# Minimal entitlements for the widget extension (sandboxed + App Group).
-cat > "$BUILD_DIR/appex.entitlements.plist" << 'ENT_EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-    <key>com.apple.security.app-sandbox</key><true/>
-    <key>com.apple.security.application-groups</key>
-    <array><string>group.com.jibeex.sleeplock</string></array>
-</dict></plist>
-ENT_EOF
-
-# Sign nested code (extensions, frameworks) first, then the top-level bundle.
-find "$STAGED_APP" -name "*.appex" | while IFS= read -r ext; do
-    codesign --force --sign - \
-        --entitlements "$BUILD_DIR/appex.entitlements.plist" \
-        --timestamp=none \
-        "$ext"
-done
-codesign --force --sign - \
-    --entitlements "$BUILD_DIR/app.entitlements.plist" \
-    --timestamp=none \
-    "$STAGED_APP"
-
-# Verify the ad-hoc signature is self-consistent.
-codesign -v "$STAGED_APP" || die "Ad-hoc re-signing failed."
+# uninstall.sh is already inside the app bundle at Contents/Resources/uninstall.sh
+# — it is included as a project resource in project.yml and covered by the
+# Xcode code signature at archive time.  Do NOT copy or inject it here;
+# modifying the app bundle after signing invalidates the signature.
 
 # Helper script — reads state file and calls pmset as root
 cat > "$PKG_ROOT/Library/PrivilegedHelperTools/com.jibeex.sleeplock-helper" << 'HELPER_EOF'

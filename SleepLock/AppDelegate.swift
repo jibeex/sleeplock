@@ -1,12 +1,18 @@
 import AppKit
 import ServiceManagement
+import WidgetKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
 
-    // Holds the drift-correction timer alive for the lifetime of the app.
-    private var syncTimer: Timer?
-
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Pre-warm: register the TCC app-group permission once at launch.
+        // ⚠️  DO NOT REMOVE — see docs/adr/0003-prewarm-appgroup-at-launch.md
+        // macOS grants the permission to whichever process first touches the App Group UserDefaults.
+        // Without this read, the widget extension is the first requester on every toggle, which
+        // causes the "SleepLock.app would like to access data from other apps" dialog to reappear
+        // on every toggle even after the user clicks "Allow".
+        _ = Constant.appGroupDefaults.bool(forKey: Constant.stateKey)
+
         // DistributedNotificationCenter is user-scoped and accepts Swift closures directly,
         // replacing two near-identical CFNotificationCenterAddObserver blocks that required
         // unsafe Unmanaged pointer boilerplate.
@@ -18,27 +24,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
             self?.setDisableSleep(false)
         }
 
-        // Bootstrap from the state file, not UserDefaults.
+        // Bootstrap from the state file, not App Group UserDefaults.
         //
-        // UserDefaults can be empty after a fresh install, after the sandboxed
-        // extension fails to persist a write (ad-hoc signing, no real team ID),
-        // or when the group container hasn't been provisioned yet.  The state
-        // file is written by this process (non-sandboxed) and survives restarts,
-        // so it is the more reliable source of truth on startup.
+        // The state file at /Library/Application Support/ is written exclusively
+        // by this non-sandboxed process and survives restarts, making it the most
+        // reliable on-disk record of desired state.  App Group UserDefaults
+        // may be empty on a fresh install before the first setDisableSleep() call.
         //
-        // setDisableSleep() writes BOTH the state file AND UserDefaults, so after
-        // this call syncIfDrifted() will always have a valid UserDefaults baseline.
+        // setDisableSleep() writes BOTH the launchd state file AND the App Group
+        // container file (for the widget's currentValue()), so both are in sync
+        // from boot onward.
         let bootState = (try? String(contentsOfFile: Constant.stateFilePath, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)) == "1"
         setDisableSleep(bootState)
-
-        // Periodic drift correction — catches the edge case where a distributed
-        // notification was delivered but the state file write failed (full disk,
-        // permissions), or where the widget updated UserDefaults while the app
-        // was briefly suspended and the notification was silently dropped.
-        syncTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            self?.syncIfDrifted()
-        }
 
         // Launch-at-login and KeepAlive are managed by the LaunchAgent installed at
         // /Library/LaunchAgents/com.jibeex.sleeplock.app.plist.  launchd restarts
@@ -57,25 +55,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        syncTimer?.invalidate()
         // Do NOT write "0" here. The state file encodes desired state, not app
         // presence. Writing "0" on every exit causes permanent lock loss when
         // launchd doesn't restart us (KeepAlive/SuccessfulExit=false means clean
-        // exits are not restarted). On the next launch, applicationDidFinishLaunching
-        // restores the correct state from UserDefaults.
+        // exits are not restarted).
     }
 
-    // MARK: - State file
-
     private func setDisableSleep(_ disable: Bool) {
-        // Write UserDefaults first.  The main app is non-sandboxed, so its writes
-        // always land in the group container — unlike the sandboxed extension whose
-        // UserDefaults writes may be silently redirected with ad-hoc signing.
-        // syncIfDrifted() reads UserDefaults as its source of truth, so keeping it
-        // in sync here prevents the 30-second timer from resetting state to 0.
-        SleepLockState.isSleepDisabled = disable
-        SleepLockState.synchronize()
-
+        // 1. Write the state file.
+        //    This is the launchd WatchPaths trigger: any write fires the privileged
+        //    helper that runs `pmset -a disablesleep`. Only the non-sandboxed main
+        //    app can write here; the sandboxed widget extension cannot.
         let value = disable ? "1" : "0"
         do {
             try value.write(toFile: Constant.stateFilePath, atomically: true, encoding: .utf8)
@@ -83,17 +73,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         } catch {
             NSLog("SleepLock: failed to write state file: %@", error.localizedDescription)
         }
+
+        // 2. Write to App Group UserDefaults for the widget.
+        //    The binary must carry a real TeamIdentifier (Apple Development cert) so
+        //    cfprefsd backs this with a shared store. The cached singleton ensures the
+        //    TCC grant is reused rather than re-requested on every access. See ADR-0001.
+        Constant.appGroupDefaults.set(disable, forKey: Constant.stateKey)
+        NSLog("SleepLock: wrote state=%@ to UserDefaults", value)
+
+        // 3. Tell the widget to refresh.
+        //    Triggers currentValue() on SleepLockValueProvider, which reads the
+        //    UserDefaults value written above — guaranteed in sync.
+        ControlCenter.shared.reloadControls(ofKind: Constant.controlKind)
     }
 
-    /// Reads the on-disk state file and compares it to UserDefaults.
-    /// Re-writes if they differ, bringing the daemon back in sync.
-    private func syncIfDrifted() {
-        let intended = SleepLockState.isSleepDisabled
-        let onDisk = (try? String(contentsOfFile: Constant.stateFilePath, encoding: .utf8)
-            .trimmingCharacters(in: .whitespacesAndNewlines)) == "1"
-        guard intended != onDisk else { return }
-        NSLog("SleepLock: drift detected (intended=%d onDisk=%d) — correcting",
-              intended ? 1 : 0, onDisk ? 1 : 0)
-        setDisableSleep(intended)
-    }
 }

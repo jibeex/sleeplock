@@ -1,5 +1,5 @@
 import AppIntents
-import WidgetKit
+import os.log
 
 struct ToggleSleepLockIntent: SetValueIntent {
     static let title: LocalizedStringResource = "Toggle Sleep Lock"
@@ -11,20 +11,22 @@ struct ToggleSleepLockIntent: SetValueIntent {
     init(value: Bool) { self.value = value }
 
     func perform() async throws -> some IntentResult {
-        // Persist locally so currentValue() doesn't bounce back.
-        SleepLockState.isSleepDisabled = value
-        // Force the write to disk before this short-lived extension process exits.
-        // UserDefaults writes are async; without this the plist may never be committed
-        // if the process terminates quickly, causing the main app's drift-correction
-        // timer to read false and reset the state file to "0".
-        SleepLockState.synchronize()
+        os_log(.default, "🔵 perform() START: value=%{public}@", String(value))
 
-        // Notify the main app. DistributedNotificationCenter matches the observer
-        // in AppDelegate — user-scoped, no unsafe pointer boilerplate.
+        // Write to app group UserDefaults
+        Constant.appGroupDefaults.set(value, forKey: Constant.stateKey)
+        Constant.appGroupDefaults.synchronize()
+
+        let verified = Constant.appGroupDefaults.bool(forKey: Constant.stateKey)
+        os_log(.default, "🟢 perform() SUCCESS: wrote=%{public}@ verified=%{public}@",
+               String(value), String(verified))
+
+        // Notify the main app via DistributedNotificationCenter.
+        // The main app writes the state file (launchd WatchPaths trigger) and
+        // re-syncs UserDefaults, keeping both stores in agreement.
         let name = value ? Constant.notificationDidEnable : Constant.notificationDidDisable
         DistributedNotificationCenter.default().post(name: .init(name), object: nil)
 
-        ControlCenter.shared.reloadControls(ofKind: Constant.controlKind)
         return .result()
     }
 }

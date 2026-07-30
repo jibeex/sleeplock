@@ -9,13 +9,13 @@
 /* Begin PBXBuildFile section */
 		07B5898128C1BF479B3FB830 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11965593F53B0294A5CF13E3 /* AppDelegate.swift */; };
 		12E3AE5A060ACA912C031F90 /* Constant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32E5869E679A4C5FD1B44ECC /* Constant.swift */; };
+		14E5F0122FEE987F63343BEE /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3E9A655F3804DDC5FD06FBAB /* WidgetKit.framework */; };
 		1874A3C303058CC559EB7D43 /* SleepLockApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECEF746F4F9EDD2E114D1E0E /* SleepLockApp.swift */; };
-		38BF4FFD9567AF60B70B6B85 /* SleepLockState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 875C88D279A3ED168BE499DF /* SleepLockState.swift */; };
 		6C9504119F7EB73BF365BCF1 /* SleepLockControl.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 05CC42B01F23762B61812314 /* SleepLockControl.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		6CFB184D2F3F1AE74D422C4B /* SleepLockControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E280D8FF29B3AE8FE9EB23D /* SleepLockControl.swift */; };
 		727DBDC4B416B1A789F19E28 /* Constant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32E5869E679A4C5FD1B44ECC /* Constant.swift */; };
+		95AD588BDFC4A1EAF489696E /* uninstall.sh in Resources */ = {isa = PBXBuildFile; fileRef = 542AA5246D24C07C1B874A1F /* uninstall.sh */; };
 		C0BAB8BEBE68D2406E28CFE6 /* SleepLockIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 730825FCF249AD9992BC1096 /* SleepLockIntent.swift */; };
-		C1939583FD61657400EADE0D /* SleepLockState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 875C88D279A3ED168BE499DF /* SleepLockState.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -47,18 +47,29 @@
 		11965593F53B0294A5CF13E3 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		2E280D8FF29B3AE8FE9EB23D /* SleepLockControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepLockControl.swift; sourceTree = "<group>"; };
 		32E5869E679A4C5FD1B44ECC /* Constant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constant.swift; sourceTree = "<group>"; };
+		3E9A655F3804DDC5FD06FBAB /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		542AA5246D24C07C1B874A1F /* uninstall.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = uninstall.sh; sourceTree = "<group>"; };
 		730825FCF249AD9992BC1096 /* SleepLockIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepLockIntent.swift; sourceTree = "<group>"; };
-		875C88D279A3ED168BE499DF /* SleepLockState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepLockState.swift; sourceTree = "<group>"; };
 		ECEF746F4F9EDD2E114D1E0E /* SleepLockApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepLockApp.swift; sourceTree = "<group>"; };
 		F658DACCFEBAD367A665E863 /* SleepLock.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SleepLock.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F14EDD06B27A08AD8A3E5863 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				14E5F0122FEE987F63343BEE /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		39D4D53A00B99F4A4F490B9D /* Shared */ = {
 			isa = PBXGroup;
 			children = (
 				32E5869E679A4C5FD1B44ECC /* Constant.swift */,
-				875C88D279A3ED168BE499DF /* SleepLockState.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -66,11 +77,21 @@
 		82B270BE5AB7F6EE8E6AED1A = {
 			isa = PBXGroup;
 			children = (
+				542AA5246D24C07C1B874A1F /* uninstall.sh */,
 				39D4D53A00B99F4A4F490B9D /* Shared */,
 				FF39E4EE84FD147149E56290 /* SleepLock */,
 				F5E526241E2B3BAC3AA1F22C /* SleepLockControl */,
+				855895C193776AC779415C6D /* Frameworks */,
 				A6555E62F0BA67E67EB95AA5 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		855895C193776AC779415C6D /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				3E9A655F3804DDC5FD06FBAB /* WidgetKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		A6555E62F0BA67E67EB95AA5 /* Products */ = {
@@ -108,6 +129,8 @@
 			buildConfigurationList = 5F9CDC71198B71CBAC2B9C88 /* Build configuration list for PBXNativeTarget "SleepLock" */;
 			buildPhases = (
 				CE070226E17DB7A14ADA20FE /* Sources */,
+				7E106C3B0DF8920B1B72C1FA /* Resources */,
+				F14EDD06B27A08AD8A3E5863 /* Frameworks */,
 				A234112BF244EA5E2DDCF9C9 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
@@ -178,6 +201,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		7E106C3B0DF8920B1B72C1FA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				95AD588BDFC4A1EAF489696E /* uninstall.sh in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		CE070226E17DB7A14ADA20FE /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -186,7 +220,6 @@
 				07B5898128C1BF479B3FB830 /* AppDelegate.swift in Sources */,
 				727DBDC4B416B1A789F19E28 /* Constant.swift in Sources */,
 				1874A3C303058CC559EB7D43 /* SleepLockApp.swift in Sources */,
-				38BF4FFD9567AF60B70B6B85 /* SleepLockState.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -197,7 +230,6 @@
 				12E3AE5A060ACA912C031F90 /* Constant.swift in Sources */,
 				6CFB184D2F3F1AE74D422C4B /* SleepLockControl.swift in Sources */,
 				C0BAB8BEBE68D2406E28CFE6 /* SleepLockIntent.swift in Sources */,
-				C1939583FD61657400EADE0D /* SleepLockState.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
